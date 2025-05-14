@@ -1,0 +1,714 @@
+import React, { useState } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useCluster } from "../../../cluster/cluster-data-access";
+import { BN } from "@coral-xyz/anchor";
+import { PublicKey } from "@solana/web3.js";
+import { CreateLedgerEntryArgs, useLedgerProgram } from "../new-ledger/ledger-data-access";
+import { useKeepingProgramAccount } from "./keepings-data-access";
+
+// 表单输入类型
+interface LedgerFormData {
+  amount: number;
+  category: string;
+  account: string;
+  member: string;
+  remark?: string;
+  transactionHash?: string;
+}
+
+function KeepingCard({ filteredAccounts }: { account: PublicKey }) {
+  // 格式化金额为图片中的样式（例如 -55,345.00）
+  const formatAmount = (amount: number) => {
+    return amount.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  // 格式化日期
+  const formatDate = (timestamp: number) => {
+    const date = new Date(timestamp * 1000);
+    return `${date.getFullYear()}年${date.getMonth() + 1}月`;
+  };
+
+  const formatDateTime = (timestamp: number) => {
+    const date = new Date(timestamp * 1000);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}-${String(date.getDate()).padStart(2, "0")} ${String(
+      date.getHours()
+    ).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  };
+  return (
+    <div className="bg-white shadow-md rounded-lg overflow-hidden">
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr className="bg-gray-200 text-gray-700">
+            <th className="border border-gray-300 p-3 text-left">日期</th>
+            <th className="border border-gray-300 p-3 text-left">金额</th>
+            <th className="border border-gray-300 p-3 text-left">分类</th>
+            <th className="border border-gray-300 p-3 text-left">金额</th>
+            <th className="border border-gray-300 p-3 text-left">账户</th>
+            <th className="border border-gray-300 p-3 text-left">银行卡</th>
+            <th className="border border-gray-300 p-3 text-left">本人</th>
+            <th className="border border-gray-300 p-3 text-left">时间</th>
+            <th className="border border-gray-300 p-3 text-left">备注</th>
+            <th className="border border-gray-300 p-3 text-left">收支类型</th>
+            <th className="border border-gray-300 p-3 text-left">交易哈希</th>
+            <th className="border border-gray-300 p-3 text-left">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredAccounts?.length === 0 && (
+            <tr>
+              <td
+                colSpan={12}
+                className="border border-gray-300 p-3 text-center text-gray-500"
+              >
+                暂无数据
+              </td>
+            </tr>
+          )}
+          {filteredAccounts?.map((entry, index) => (
+            <tr key={index} className="hover:bg-gray-50">
+              <td className="border border-gray-300 p-3">
+                {formatDate(entry.account.keepingTime.toNumber())}
+              </td>
+              <td className="border border-gray-300 p-3">
+                -{formatAmount(entry.account.amount.toNumber())}
+              </td>
+              <td className="border border-gray-300 p-3">
+                {new Date().toLocaleDateString("zh-CN", {
+                  day: "numeric",
+                  month: "long",
+                })}
+              </td>
+              <td className="border border-gray-300 p-3">{formatAmount(0)}</td>
+              <td className="border border-gray-300 p-3">
+                {entry.account.account.join(", ")}
+              </td>
+              <td className="border border-gray-300 p-3">银行卡</td>
+              <td className="border border-gray-300 p-3">
+                {entry.account.member}
+              </td>
+              <td className="border border-gray-300 p-3">
+                {formatDateTime(entry.account.keepingTime.toNumber())}
+              </td>
+              <td className="border border-gray-300 p-3">
+                {entry.account.comment}
+              </td>
+              <td className="border border-gray-300 p-3">-</td>
+              <td className="border border-gray-300 p-3">
+                {entry.publicKey.toString().slice(0, 8)}...
+              </td>
+              <td className="border border-gray-300 p-3">
+                <button
+                      onClick={() => handleDelete(entry.publicKey)}
+                      className="px-3 py-1 bg-red-500 text-white rounded-md text-xs hover:bg-red-600"
+                      disabled={deleteEntry.isLoading}
+                    >
+                      删除
+                    </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export function KeepingList() {
+// { account }: { account: PublicKey }
+  const { cluster } = useCluster();
+  const { publicKey } = useWallet();
+  const { program, accounts, getProgramAccount } = useLedgerProgram();
+  // const { deleteEntry } = useKeepingProgramAccount({ account });
+
+  if (getProgramAccount.isLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <span className="tbloading loading loading-spinner loading-lg text-purple-500"></span>
+      </div>
+    );
+  }
+
+  if (!getProgramAccount.data?.value) {
+    return (
+      <div className="flex justify-center alert alert-info max-w-2xl mx-auto">
+        <span>
+          Program account not found. Make sure you have deployed the program and
+          are on the correct cluster.
+        </span>
+      </div>
+    );
+  }
+
+  // return (
+  //   <div className="space-y-8 py-6">
+  //     {/* <h2 className="text-3xl font-bold text-gray-700 mb-4">
+  //       我的DDDDDDDDDDDDDDDDDDD账本
+  //     </h2> */}
+  //     {accounts.isLoading ? (
+  //       <div className="flex justify-center items-center h-64">
+  //         <span className="tbloading loading loading-spinner loading-lg text-purple-500"></span>
+  //       </div>
+  //     ) : accounts.data?.length ? (
+  //       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+  //         {accounts.data?.map((account: { publicKey: PublicKey; }) => (
+  //           <>
+  //             <LedgerCard
+  //               key={account.publicKey.toString()}
+  //               account={account.publicKey}
+  //             />
+  //             <h2>JJJJJJJrtJJJJJJJJJJJJJJJJJLLLLLLLLLLLLLLL</h2>
+  //           </>
+  //         ))}
+  //       </div>
+  //     ) : (
+  //       <div className="text-center py-12">
+  //         <h2 className="text-3xl font-bold text-gray-700 mb-4">
+  //           No entries yet
+  //         </h2>
+  //         <p className="text-gray-500">
+  //           Create your first ledger entry to get started
+  //         </p>
+  //       </div>
+  //     )}
+  //   </div>
+  // );
+
+  const [formData, setFormData] = useState<CreateLedgerEntryArgs>({
+  keeping_num: new BN(1),
+  amount: new BN(1),
+  category: ["SSd"],
+  accountType: ["SSd"],
+  keeping_time: new BN(1), // 固定8字节，无需限制
+  member: "",
+  merchant: "",
+  project: "",
+  comment:"",
+  img: "",
+    // transactionHash: "",
+  });
+  const [showForm, setShowForm] = useState(false); // 控制表单显示
+  const [searchTerm, setSearchTerm] = useState(""); // 搜索关键字
+
+  // 处理表单输入变化
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: name === "amount" ? Number(value) : value,
+    }));
+  };
+
+  // 提交创建新账本条目
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!publicKey) {
+      alert("请连接钱包");
+      return;
+    }
+
+    // try {
+    //   const keeping_num = new BN(Math.floor(Date.now() / 1000));
+    //   await createLedgerEntry.mutateAsync({
+    //     owner: publicKey,
+    //     keeping_num,
+    //     amount: new BN(formData.amount),
+    //     category: [formData.category],
+    //     accountType: [formData.account],
+    //     keeping_time: keeping_num,
+    //     member: formData.member,
+    //     merchant: "",
+    //     project: "",
+    //     comment: formData.remark,
+    //     img: "",
+    //   });
+    //   setFormData({
+    //     amount: 0,
+    //     category: "",
+    //     account: "",
+    //     member: "",
+    //     remark: "",
+    //     transactionHash: "",
+    //   });
+    //   setShowForm(false); // 提交后隐藏表单
+    // } catch (error) {
+    //   console.error("创建账本条目失败:", error);
+    //   alert("创建失败，请查看控制台");
+    // }
+  };
+
+  // 删除账本条目
+  // const handleDelete = async (pda: PublicKey) => {
+  //   if (!publicKey) {
+  //     alert("请连接钱包");
+  //     return;
+  //   }
+  //   try {
+  //     await deleteEntry.mutateAsync({ pda });
+  //   } catch (error) {
+  //     console.error("删除账本条目失败:", error);
+  //     alert("删除失败，请查看控制台");
+  //   }
+  // };
+
+  // 格式化金额为图片中的样式（例如 -55,345.00）
+  const formatAmount = (amount: number) => {
+    return amount.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  // 格式化日期
+  const formatDate = (timestamp: number) => {
+    const date = new Date(timestamp * 1000);
+    return `${date.getFullYear()}年${date.getMonth() + 1}月`;
+  };
+
+  const formatDateTime = (timestamp: number) => {
+    const date = new Date(timestamp * 1000);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}-${String(date.getDate()).padStart(2, "0")} ${String(
+      date.getHours()
+    ).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  };
+
+  // 搜索过滤
+  const filteredAccounts = accounts.data?.filter(
+    (entry) =>
+      entry.account.comment.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      entry.account.amount.toString().includes(searchTerm)
+  );
+
+  return (
+    <div className="flex h-screen bg-gray-100 font-sans">
+      {/* 左侧导航栏 */}
+      <div className="w-56 bg-white shadow-md">
+        <div className="p-5 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-700">导航</h2>
+        </div>
+        <ul className="mt-2">
+          {["主页", "流水", "账本", "收支明细", "资产概况", "账户管理"].map(
+            (item, index) => (
+              <li
+                key={index}
+                className={`px-5 py-3 text-sm ${
+                  item === "流水"
+                    ? "bg-orange-50 text-orange-600 font-medium"
+                    : "text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                <a href="#" className="block">
+                  {item}
+                </a>
+              </li>
+            )
+          )}
+        </ul>
+      </div>
+
+      {/* 主内容区域 */}
+      <div className="flex-1 p-8">
+        {/* 顶部区域 */}
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-xl font-semibold text-orange-600">流水记录</h1>
+            <div className="text-sm text-gray-600 mt-1">
+              流水:{" "}
+              <span className="text-orange-600">-{formatAmount(55345)}</span> |
+              收入: <span className="text-orange-600">{formatAmount(0)}</span> |
+              总计:{" "}
+              <span className="text-orange-600">{formatAmount(55345)}</span>
+            </div>
+          </div>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setShowForm(true)}
+              className="bg-orange-500 text-white px-4 py-1.5 rounded-md text-sm font-medium hover:bg-orange-600 flex items-center"
+            >
+              <svg
+                className="w-4 h-4 mr-1"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              新增收入/支出
+            </button>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="搜索..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-48 pl-3 pr-8 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+              />
+              <svg
+                className="w-4 h-4 text-gray-500 absolute right-2 top-1/2 transform -translate-y-1/2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+            </div>
+            <img
+              src="/avatar.png"
+              alt="用户"
+              className="w-8 h-8 rounded-full border border-gray-200"
+            />
+          </div>
+        </div>
+
+        {/* 表单（点击“新增”后显示） */}
+        {publicKey && showForm && (
+          <div className="mb-6 p-5 bg-white rounded-lg shadow-md">
+            <form onSubmit={handleSubmit} className="grid grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  金额:
+                </label>
+                <input
+                  type="number"
+                  name="amount"
+                  value={formData.amount}
+                  onChange={handleInputChange}
+                  className="w-full p-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  分类:
+                </label>
+                <input
+                  type="text"
+                  name="category"
+                  value={formData.category}
+                  onChange={handleInputChange}
+                  className="w-full p-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  账户:
+                </label>
+                <input
+                  type="text"
+                  name="accountType"
+                  value={formData.accountType}
+                  onChange={handleInputChange}
+                  className="w-full p-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  成员:
+                </label>
+                <input
+                  type="text"
+                  name="member"
+                  value={formData.member}
+                  onChange={handleInputChange}
+                  className="w-full p-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  备注:
+                </label>
+                <input
+                  type="text"
+                  name="comment"
+                  value={formData.comment}
+                  onChange={handleInputChange}
+                  className="w-full p-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+                />
+              </div>
+              <div className="col-span-2 flex space-x-3">
+                {/* <button
+                  type="submit"
+                  className="w-1/2 p-2 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600"
+                  disabled={createLedgerEntry.isLoading}
+                >
+                  {createLedgerEntry.isLoading ? "提交中..." : "提交"}
+                </button> */}
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="w-1/2 p-2 bg-gray-300 text-gray-700 rounded-md text-sm hover:bg-gray-400"
+                >
+                  取消
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        <KeepingCard
+                        key={filteredAccounts.data.account.publicKey.toString()}
+                account={filteredAccounts.data.account.publicKey}
+        />
+        
+      </div>
+    </div>
+  );
+}
+
+// import React, { useState } from "react";
+// // import { useLedgerProgram } from "./keepings-data-access";
+// import { useWallet } from "@solana/wallet-adapter-react";
+// import { useCluster } from "../../../cluster/cluster-data-access";
+// import { BN } from "@coral-xyz/anchor";
+// import { PublicKey } from "@solana/web3.js";
+// import { useLedgerProgram } from "../new-ledger/ledger-data-access";
+// import { useKeepingProgramAccount } from "./keepings-data-access";
+
+// // 表单输入类型
+// interface LedgerFormData {
+//   amount: number;
+//   category: string;
+//   account: string;
+//   member: string;
+//   remark: string;
+//   transactionHash?: string;
+// }
+
+// export function KeepingList({ account }: { account: PublicKey }) {
+//   const { cluster } = useCluster();
+//   const { publicKey } = useWallet();
+//   const { program, accounts, createLedgerEntry } = useLedgerProgram();
+
+//   const { deleteEntry } = useKeepingProgramAccount({
+//       account,
+//     });
+//   const [formData, setFormData] = useState<LedgerFormData>({
+//     amount: 0,
+//     category: "",
+//     account: "",
+//     member: "",
+//     remark: "",
+//     transactionHash: "",
+//   });
+
+//   // 处理表单输入变化
+//   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+//     const { name, value } = e.target;
+//     setFormData((prev) => ({
+//       ...prev,
+//       [name]: name === "amount" ? Number(value) : value,
+//     }));
+//   };
+
+//   // 提交创建新账本条目
+//   const handleSubmit = async (e: React.FormEvent) => {
+//     e.preventDefault();
+//     if (!publicKey) {
+//       alert("请连接钱包");
+//       return;
+//     }
+
+//     try {
+//       const keeping_num = new BN(Math.floor(Date.now() / 1000)); // 使用时间戳作为唯一编号
+//       await createLedgerEntry.mutateAsync({
+//         owner: publicKey,
+//         keeping_num,
+//         amount: new BN(formData.amount),
+//         category: [formData.category], // 简化成单分类
+//         accountType: [formData.account], // 简化成单账户
+//         keeping_time: keeping_num,
+//         member: formData.member,
+//         merchant: "", // 图片未显示，留空
+//         project: "", // 图片未显示，留空
+//         comment: formData.remark,
+//         img: "", // 图片未显示，留空
+//       });
+//       setFormData({
+//         amount: 0,
+//         category: "",
+//         account: "",
+//         member: "",
+//         remark: "",
+//         transactionHash: "",
+//       });
+//     } catch (error) {
+//       console.error("创建账本条目失败:", error);
+//       alert("创建失败，请查看控制台");
+//     }
+//   };
+
+//   // 删除账本条目
+//   const handleDelete = async (pda: PublicKey) => {
+//     if (!publicKey) {
+//       alert("请连接钱包");
+//       return;
+//     }
+//     try {
+//       await deleteEntry.mutateAsync({ pda });
+//     } catch (error) {
+//       console.error("删除账本条目失败:", error);
+//       alert("删除失败，请查看控制台");
+//     }
+//   };
+
+//   return (
+//     <div className="flex h-screen bg-gray-100">
+//       {/* 左侧导航栏 */}
+//       <div className="w-64 bg-white shadow-lg">
+//         <div className="p-4">
+//           <h2 className="text-xl font-bold text-gray-700">导航</h2>
+//         </div>
+//         <ul className="mt-4">
+//           <li className="px-4 py-2 hover:bg-gray-200">
+//             <a href="#" className="text-gray-600">主页</a>
+//           </li>
+//           <li className="px-4 py-2 bg-orange-100 text-orange-600">
+//             <a href="#" className="font-medium">流水</a>
+//           </li>
+//           <li className="px-4 py-2 hover:bg-gray-200">
+//             <a href="#" className="text-gray-600">账本</a>
+//           </li>
+//           <li className="px-4 py-2 hover:bg-gray-200">
+//             <a href="#" className="text-gray-600">收支明细</a>
+//           </li>
+//           <li className="px-4 py-2 hover:bg-gray-200">
+//             <a href="#" className="text-gray-600">资产概况</a>
+//           </li>
+//           <li className="px-4 py-2 hover:bg-gray-200">
+//             <a href="#" className="text-gray-600">账户管理</a>
+//           </li>
+//           <li className="px-4 py-2 hover:bg-gray-200">
+//             <a href="#" className="text-gray-600">账户管理</a>
+//           </li>
+//         </ul>
+//       </div>
+
+//       {/* 主内容区域 */}
+//       <div className="flex-1 p-6">
+//         {/* 顶部金额区域 */}
+//         <div className="flex justify-between items-center mb-6">
+//           <div>
+//             <h1 className="text-2xl font-bold text-orange-600">流水记录</h1>
+//             <div className="text-gray-600">
+//               流水: <span className="text-orange-600">-55,345.00</span> |
+//               收入: <span className="text-orange-600">0.00</span> |
+//               总计: <span className="text-orange-600">55,345.00</span>
+//             </div>
+//           </div>
+//           <div>
+//             <button className="bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600">
+//               + 新增收入/支出
+//             </button>
+//             <input
+//               type="text"
+//               placeholder="搜索..."
+//               className="ml-4 p-2 border rounded"
+//             />
+//             <button className="ml-2">
+//               <svg className="w-6 h-6 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+//                 <path d="M12 12m-9 0a9 9 0 1 0 18 0 9 9 0 1 0-18 0z" />
+//                 <path d="M15 15l6 6" />
+//               </svg>
+//             </button>
+//             <img src="/avatar.png" alt="用户" className="w-8 h-8 ml-2 rounded-full" />
+//           </div>
+//         </div>
+
+//         {/* 表单（隐藏，点击“新增”后显示） */}
+//         {publicKey && (
+//           <div className="mb-6 p-4 bg-white rounded shadow">
+//             <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
+//               <div>
+//                 <label className="block mb-1">金额:</label>
+//                 <input
+//                   type="number"
+//                   name="amount"
+//                   value={formData.amount}
+//                   onChange={handleInputChange}
+//                   className="w-full p-2 border rounded"
+//                   required
+//                 />
+//               </div>
+
+//               {/* <div className="col-span-2">
+//                 <button
+//                   type="submit"
+//                   className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+//                   disabled={createLedgerEntry.isLoading}
+//                 >
+//                   {createLedgerEntry.isLoading ? "提交中..." : "提交"}
+//                 </button>
+//               </div> */}
+//             </form>
+//           </div>
+//         )}
+
+//         {/* 账本条目表格 */}
+//         <div className="bg-white shadow rounded">
+//           <table className="w-full border-collapse">
+//             <thead>
+//               <tr className="bg-gray-200">
+//                 <th className="border p-2">日期</th>
+//                 <th className="border p-2">金额</th>
+//                 <th className="border p-2">分类</th>
+//                 <th className="border p-2">金额</th>
+//                 <th className="border p-2">账户</th>
+//                 <th className="border p-2">银行卡</th>
+//                 <th className="border p-2">本人</th>
+//                 <th className="border p-2">时间</th>
+//                 <th className="border p-2">备注</th>
+//                 <th className="border p-2">收支类型</th>
+//                 <th className="border p-2">交易哈希</th>
+//                 <th className="border p-2">操作</th>
+//               </tr>
+//             </thead>
+//             <tbody>
+//               {accounts.data?.map((entry, index) => (
+//                 <tr key={index} className="hover:bg-gray-100">
+//                   <td className="border p-2">{new Date().getFullYear()}年{new Date().getMonth() + 1}月</td>
+//                   <td className="border p-2">{entry.account.amount.toString()}</td>
+//                   <td className="border p-2">{new Date().toLocaleDateString()}</td>
+//                   <td className="border p-2">{entry.account.amount.toString()}</td>
+//                   <td className="border p-2">{entry.account.account.join(", ")}</td>
+//                   <td className="border p-2">银行卡</td>
+//                   <td className="border p-2">{entry.account.member}</td>
+//                   <td className="border p-2">{new Date(entry.account.keepingTime.toNumber() * 1000).toLocaleString()}</td>
+//                   <td className="border p-2">{entry.account.comment}</td>
+//                   <td className="border p-2">-</td>
+//                   <td className="border p-2">{entry.publicKey.toString().slice(0, 8)}...</td>
+//                   <td className="border p-2">
+//                     <button
+//                       onClick={() => handleDelete(entry.publicKey)}
+//                       className="p-1 bg-red-500 text-white rounded hover:bg-red-600"
+//                       disabled={deleteEntry.isLoading}
+//                     >
+//                       删除
+//                     </button>
+//                   </td>
+//                 </tr>
+//               ))}
+//             </tbody>
+//           </table>
+//         </div>
+//       </div>
+//     </div>
+//   );
+// }

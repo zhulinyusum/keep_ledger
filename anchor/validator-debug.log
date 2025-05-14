@@ -1,0 +1,6 @@
+error: Found argument '-v' which wasn't expected, or isn't valid in this context
+
+USAGE:
+    solana-test-validator --ledger <DIR> --log --reset
+
+For more information try --help
