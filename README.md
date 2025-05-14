@@ -1,16 +1,19 @@
-# Basic CRUD app
+# KeepLedger app
 
-This is an example of an on-chain CRUD dapp. This example is a journal dapp where you can create, read, update, and delete journal entries on the solana blockchain and interact with the solana program via a UI.
+This is an example of an on-chain KeepLedger dapp. This is a ledger dapp where you can create, read, update, and delete keeping entries on the solana blockchain and interact with the solana program via a UI.
 
 This project was created using the [create-solana-dapp](https://github.com/solana-developers/create-solana-dapp) generator.
+
+
+<img src="" width="100%" />
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node v18.18.0 or higher
-- Rust v1.70.0 or higher
-- Anchor CLI 0.29.0 or higher
+- Rust v1.86.0 or higher
+- Anchor CLI 0.31.1 or higher
 - Solana CLI 1.17.0 or higher
 
 ### Installation
@@ -50,7 +53,7 @@ You can use any normal anchor commands. Either move to the `anchor` directory an
 
 Running this command will create a new keypair in the `anchor/target/deploy` directory and save the address to the Anchor config file and update the `declare_id!` macro in the `./src/lib.rs` file of the program.
 
-You will manually need to update the constant in `anchor/lib/counter-exports.ts` to match the new program id.
+You will manually need to update the constant in `anchor/lib/journal-exports.ts` to match the new program id.
 
 ```shell
 npm run anchor keys sync

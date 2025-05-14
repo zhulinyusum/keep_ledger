@@ -31,7 +31,7 @@ export function JournalCreate1() {
   }
 
   return (
-      <Link href="/ledger/ledger-select/new-ledger">
+      <Link href="/ledger/ledger-select">
       <div className="max-w-md mx-auto bg-gradient-to-br from-blue-50 to-purple-50 p-6 rounded-xl shadow-lg transition-all duration-300 hover:shadow-xl">
         <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">
           New Ledger

@@ -152,7 +152,7 @@ const LedgerPage: NextPage = () => {
                                 </div>
 
                                 <div className="card-actions justify-end mt-4">
-                                    <Link href="/new-ledger/keepings/1">
+                                    <Link href="/ledger/ledger-select/keepings/1">
                                     <button className="btn btn-sm btn-primary">立即使用</button>
                                     </Link>
                                     <button className="btn btn-sm btn-outline">查看详情</button>
